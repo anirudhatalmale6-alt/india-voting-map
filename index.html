@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>India City Preference Vote</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--bg2:#111627;--surface:#161b2e;--surface2:#1c2240;
+  --accent:#f0c040;--accent2:#e8a820;--green:#2dd4a8;--green-dim:#1a8a6a;
+  --blue:#4e9fff;--blue-dim:#2a6bcc;--red:#ff6b6b;
+  --text:#e8eaf0;--text2:#8b92a8;--text3:#5a6178;
+  --gold-glow:0 0 20px rgba(240,192,64,0.3);
+  --green-glow:0 0 12px rgba(45,212,168,0.4);
+  --blue-glow:0 0 12px rgba(78,159,255,0.4);
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'DM Sans',sans-serif;min-height:100vh;
+  overflow-x:hidden;position:relative;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse at 30% 20%,rgba(240,192,64,0.03) 0%,transparent 60%),
+             radial-gradient(ellipse at 70% 80%,rgba(78,159,255,0.03) 0%,transparent 60%);
+  pointer-events:none;z-index:0;
+}
+
+/* ─── Header ─── */
+.header{
+  position:relative;z-index:10;text-align:center;
+  padding:2rem 1rem 1rem;
+}
+.header h1{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:800;
+  font-size:clamp(1.6rem,4vw,2.8rem);
+  background:linear-gradient(135deg,var(--accent),#ffd970,var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;letter-spacing:-0.02em;
+}
+.header .subtitle{
+  font-size:0.85rem;color:var(--text2);margin-top:0.3rem;
+  letter-spacing:0.15em;text-transform:uppercase;font-weight:300;
+}
+.total-votes-bar{
+  display:flex;align-items:center;justify-content:center;gap:0.8rem;
+  margin-top:1rem;padding:0.6rem 1.5rem;
+  background:var(--surface);border:1px solid rgba(240,192,64,0.15);
+  border-radius:100px;display:inline-flex;
+}
+.total-votes-bar .label{font-size:0.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em}
+.total-votes-bar .count{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:1.4rem;color:var(--accent);
+}
+.total-votes-bar .pulse-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  animation:pulse-live 2s ease-in-out infinite;
+}
+@keyframes pulse-live{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+
+/* ─── Main Layout ─── */
+.app-container{
+  position:relative;z-index:5;
+  max-width:1400px;margin:0 auto;padding:1rem;
+  display:grid;grid-template-columns:1fr minmax(300px,600px) 1fr;
+  gap:0.5rem;align-items:start;
+  min-height:calc(100vh - 140px);
+}
+@media(max-width:1100px){
+  .app-container{grid-template-columns:1fr;gap:2rem}
+  .stats-left,.stats-right{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center}
+}
+
+/* ─── Map Container ─── */
+.map-wrapper{
+  position:relative;display:flex;align-items:center;justify-content:center;
+}
+.map-container{
+  position:relative;width:100%;max-width:550px;margin:0 auto;
+}
+.map-container svg{width:100%;height:auto;filter:drop-shadow(0 0 30px rgba(240,192,64,0.06))}
+.map-container svg .state-path{
+  fill:url(#mapGradient);stroke:rgba(255,255,255,0.08);stroke-width:0.5;
+  transition:fill 0.3s,stroke 0.3s;cursor:default;
+}
+.map-container svg .state-path:hover{
+  fill:url(#mapGradientHover);stroke:rgba(255,255,255,0.15);
+}
+
+/* ─── City Markers ─── */
+.city-marker{
+  position:absolute;transform:translate(-50%,-50%);cursor:pointer;z-index:20;
+}
+.city-marker .dot{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);border:2px solid rgba(255,255,255,0.9);
+  box-shadow:var(--gold-glow);
+  transition:transform 0.2s,box-shadow 0.2s;position:relative;z-index:2;
+}
+.city-marker:hover .dot{transform:scale(1.4);box-shadow:0 0 30px rgba(240,192,64,0.6)}
+.city-marker .ring{
+  position:absolute;inset:-6px;border-radius:50%;
+  border:1.5px solid rgba(240,192,64,0.3);
+  animation:marker-ring 2.5s ease-out infinite;
+}
+@keyframes marker-ring{0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.5);opacity:0}}
+.city-marker .city-label{
+  position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);
+  font-size:0.6rem;font-weight:600;color:var(--text);white-space:nowrap;
+  text-shadow:0 1px 4px rgba(0,0,0,0.8);letter-spacing:0.05em;
+  pointer-events:none;
+}
+
+/* ─── Stat Cards ─── */
+.stats-left,.stats-right{
+  display:flex;flex-direction:column;gap:0.8rem;padding-top:1rem;
+}
+.stat-card{
+  background:var(--surface);border:1px solid rgba(255,255,255,0.06);
+  border-radius:12px;padding:0.9rem 1rem;position:relative;
+  transition:border-color 0.3s,transform 0.2s,box-shadow 0.3s;
+  overflow:hidden;
+}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0.4;
+}
+.stat-card:hover{
+  border-color:rgba(240,192,64,0.2);transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(0,0,0,0.3);
+}
+.stat-card .city-name{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:0.9rem;color:var(--accent);margin-bottom:0.5rem;
+}
+.stat-card .vote-total{
+  font-size:1.8rem;font-weight:700;color:var(--text);
+  font-family:'Bricolage Grotesque',sans-serif;line-height:1;
+}
+.stat-card .vote-label{font-size:0.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-top:0.15rem}
+.stat-row{display:flex;align-items:center;gap:0.6rem;margin-top:0.6rem}
+.stat-row .donut-wrapper{flex-shrink:0}
+.stat-row .breakdown{flex:1;display:flex;flex-direction:column;gap:0.3rem}
+.breakdown-item{display:flex;align-items:center;gap:0.4rem;font-size:0.72rem}
+.breakdown-item .bar-dot{width:6px;height:6px;border-radius:50%}
+.breakdown-item .bar-dot.same{background:var(--green)}
+.breakdown-item .bar-dot.outside{background:var(--blue)}
+.breakdown-item .bar-label{color:var(--text2)}
+.breakdown-item .bar-value{margin-left:auto;font-weight:600;color:var(--text)}
+
+/* ─── Mini Donut ─── */
+.mini-donut{width:38px;height:38px}
+.mini-donut circle{fill:none;stroke-width:5;stroke-linecap:round}
+.mini-donut .bg-ring{stroke:var(--surface2)}
+.mini-donut .same-ring{stroke:var(--green);transition:stroke-dasharray 0.6s ease}
+.mini-donut .outside-ring{stroke:var(--blue);transition:stroke-dasharray 0.6s ease}
+
+/* ─── Connection Lines (SVG overlay) ─── */
+.connection-lines{
+  position:absolute;inset:0;pointer-events:none;z-index:1;
+}
+.connection-lines line{
+  stroke:rgba(240,192,64,0.12);stroke-width:1;
+  stroke-dasharray:4 3;
+}
+
+/* ─── Modal ─── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(5,8,18,0.85);
+  backdrop-filter:blur(8px);z-index:1000;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity 0.3s;
+}
+.modal-overlay.active{opacity:1;pointer-events:all}
+.modal{
+  background:var(--surface);border:1px solid rgba(240,192,64,0.2);
+  border-radius:20px;padding:2.5rem;max-width:380px;width:90%;
+  text-align:center;transform:scale(0.9) translateY(20px);
+  transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow:0 20px 60px rgba(0,0,0,0.5),var(--gold-glow);
+}
+.modal-overlay.active .modal{transform:scale(1) translateY(0)}
+.modal .modal-icon{
+  width:56px;height:56px;border-radius:50%;margin:0 auto 1.2rem;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;box-shadow:var(--gold-glow);
+}
+.modal h2{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:1.3rem;color:var(--text);margin-bottom:0.3rem;
+}
+.modal .modal-sub{font-size:0.85rem;color:var(--text2);margin-bottom:1.5rem}
+.modal .detect-info{
+  background:var(--bg);border-radius:10px;padding:0.7rem 1rem;
+  margin-bottom:1.2rem;font-size:0.78rem;color:var(--text2);
+  display:flex;align-items:center;gap:0.5rem;justify-content:center;
+}
+.modal .detect-info .detect-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  animation:pulse-live 1.5s ease-in-out infinite;
+}
+.btn-confirm{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#0a0e1a;border:none;border-radius:12px;
+  padding:0.8rem 2rem;font-family:'DM Sans',sans-serif;
+  font-weight:600;font-size:0.9rem;cursor:pointer;
+  transition:transform 0.15s,box-shadow 0.2s;width:100%;
+}
+.btn-confirm:hover{transform:translateY(-1px);box-shadow:var(--gold-glow)}
+.btn-confirm:active{transform:translateY(0)}
+.btn-cancel{
+  background:none;border:1px solid rgba(255,255,255,0.1);color:var(--text2);
+  border-radius:12px;padding:0.6rem 1.5rem;font-family:'DM Sans',sans-serif;
+  font-size:0.8rem;cursor:pointer;margin-top:0.6rem;width:100%;
+  transition:border-color 0.2s,color 0.2s;
+}
+.btn-cancel:hover{border-color:rgba(255,255,255,0.25);color:var(--text)}
+
+/* ─── Vote Success Toast ─── */
+.toast{
+  position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);
+  background:var(--surface);border:1px solid var(--green);border-radius:14px;
+  padding:0.8rem 1.5rem;z-index:2000;
+  display:flex;align-items:center;gap:0.6rem;
+  box-shadow:0 10px 30px rgba(0,0,0,0.4),var(--green-glow);
+  transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1),opacity 0.3s;
+  opacity:0;font-size:0.85rem;font-weight:500;
+}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast .check{color:var(--green);font-size:1.1rem}
+
+/* ─── Confetti canvas ─── */
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:1500}
+
+/* ─── Footer ─── */
+.footer{
+  text-align:center;padding:2rem 1rem;font-size:0.7rem;color:var(--text3);
+  position:relative;z-index:5;
+}
+
+/* ─── Animations ─── */
+@keyframes fade-up{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:translateY(0)}}
+.stat-card{animation:fade-up 0.5s ease backwards}
+.stat-card:nth-child(1){animation-delay:0.1s}
+.stat-card:nth-child(2){animation-delay:0.2s}
+.stat-card:nth-child(3){animation-delay:0.3s}
+.stat-card:nth-child(4){animation-delay:0.4s}
+.stat-card:nth-child(5){animation-delay:0.5s}
+.stat-card:nth-child(6){animation-delay:0.6s}
+
+.vote-bump{animation:bump 0.4s ease}
+@keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1>India City Preference Vote</h1>
+  <p class="subtitle">Where would you choose to live?</p>
+  <div class="total-votes-bar">
+    <div class="pulse-dot"></div>
+    <span class="label">Total Votes</span>
+    <span class="count" id="totalVotes">0</span>
+  </div>
+</header>
+
+<!-- Main App -->
+<div class="app-container" id="app">
+  <!-- Left Stats -->
+  <div class="stats-left" id="statsLeft"></div>
+
+  <!-- Map -->
+  <div class="map-wrapper">
+    <div class="map-container" id="mapContainer">
+      <svg id="indiaMap" viewBox="60 60 440 500" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="mapGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1e2545"/>
+            <stop offset="100%" stop-color="#252d52"/>
+          </linearGradient>
+          <linearGradient id="mapGradientHover" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#252d55"/>
+            <stop offset="100%" stop-color="#2d3662"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="g"/>
+            <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <!-- India map paths - simplified but recognizable -->
+        <!-- Jammu & Kashmir -->
+        <path class="state-path" d="M200,80 L215,75 L240,78 L260,90 L270,85 L285,95 L280,110 L290,120 L275,130 L260,125 L250,135 L235,130 L225,115 L210,120 L195,110 L190,95 Z"/>
+        <!-- Himachal Pradesh -->
+        <path class="state-path" d="M250,135 L260,125 L275,130 L280,140 L270,150 L255,148 L245,142 Z"/>
+        <!-- Punjab -->
+        <path class="state-path" d="M225,115 L235,130 L245,142 L240,155 L225,160 L210,150 L205,135 L210,120 Z"/>
+        <!-- Uttarakhand -->
+        <path class="state-path" d="M270,150 L280,140 L295,145 L305,155 L295,165 L280,162 Z"/>
+        <!-- Haryana + Delhi -->
+        <path class="state-path" d="M225,160 L240,155 L255,148 L260,160 L255,175 L240,180 L228,172 Z"/>
+        <!-- Rajasthan -->
+        <path class="state-path" d="M160,175 L180,165 L210,150 L225,160 L228,172 L240,180 L235,200 L225,220 L210,235 L190,240 L170,230 L155,215 L148,195 Z"/>
+        <!-- Uttar Pradesh -->
+        <path class="state-path" d="M255,175 L260,160 L270,150 L280,162 L295,165 L310,170 L330,175 L345,185 L340,200 L325,210 L310,205 L295,210 L280,205 L265,210 L255,200 L240,195 L240,180 Z"/>
+        <!-- Gujarat -->
+        <path class="state-path" d="M120,220 L140,210 L155,215 L170,230 L175,250 L160,265 L145,275 L130,280 L120,270 L110,275 L105,260 L100,245 L108,235 Z"/>
+        <!-- Madhya Pradesh -->
+        <path class="state-path" d="M190,240 L210,235 L225,220 L240,215 L255,210 L275,215 L295,220 L310,225 L305,245 L295,260 L280,265 L260,270 L240,275 L225,270 L210,260 L200,250 Z"/>
+        <!-- Bihar -->
+        <path class="state-path" d="M345,185 L360,190 L375,195 L385,205 L375,215 L360,210 L345,215 L335,210 L340,200 Z"/>
+        <!-- Jharkhand -->
+        <path class="state-path" d="M335,210 L345,215 L360,210 L375,215 L370,230 L355,240 L340,235 L330,225 L325,215 Z"/>
+        <!-- West Bengal -->
+        <path class="state-path" d="M375,195 L390,190 L400,200 L395,220 L388,240 L380,260 L370,275 L360,270 L365,250 L370,230 L375,215 L385,205 Z"/>
+        <!-- Odisha -->
+        <path class="state-path" d="M310,225 L325,215 L335,225 L345,240 L360,250 L365,265 L355,280 L340,290 L320,285 L305,275 L300,260 L305,245 Z"/>
+        <!-- Chhattisgarh -->
+        <path class="state-path" d="M295,260 L305,245 L310,225 L325,215 L330,225 L340,235 L345,250 L340,265 L325,280 L310,275 Z"/>
+        <!-- Maharashtra -->
+        <path class="state-path" d="M160,265 L175,250 L190,240 L200,250 L210,260 L225,270 L240,275 L260,280 L275,290 L280,305 L270,320 L250,330 L230,325 L210,315 L190,305 L175,295 L165,280 Z"/>
+        <!-- Telangana -->
+        <path class="state-path" d="M260,280 L275,275 L295,270 L310,280 L315,295 L305,310 L290,315 L275,310 L270,295 Z"/>
+        <!-- Andhra Pradesh -->
+        <path class="state-path" d="M270,320 L280,305 L275,310 L290,315 L305,310 L315,295 L325,300 L340,310 L345,330 L335,350 L320,365 L305,355 L290,345 L280,335 L270,325 Z"/>
+        <!-- Karnataka -->
+        <path class="state-path" d="M190,305 L210,315 L230,325 L250,330 L260,340 L255,360 L245,375 L230,385 L215,380 L200,370 L190,355 L185,335 L180,320 Z"/>
+        <!-- Goa -->
+        <path class="state-path" d="M180,320 L190,315 L192,325 L185,335 L178,328 Z"/>
+        <!-- Kerala -->
+        <path class="state-path" d="M215,380 L230,385 L240,400 L235,420 L228,440 L220,455 L210,445 L205,425 L200,405 L205,390 Z"/>
+        <!-- Tamil Nadu -->
+        <path class="state-path" d="M245,375 L255,360 L265,350 L280,345 L295,355 L305,365 L310,385 L300,405 L285,420 L270,430 L255,425 L240,415 L235,400 L240,385 Z"/>
+        <!-- Northeast states (simplified) -->
+        <path class="state-path" d="M390,140 L410,135 L430,140 L445,150 L460,155 L470,165 L465,180 L450,185 L435,180 L420,175 L405,180 L395,170 L385,160 L390,150 Z"/>
+        <!-- Assam corridor -->
+        <path class="state-path" d="M385,160 L390,170 L395,180 L400,190 L395,195 L390,190 L385,180 L378,175 L370,170 L365,160 L370,155 L378,150 Z"/>
+        <!-- Sikkim -->
+        <path class="state-path" d="M365,155 L375,148 L380,155 L375,162 L368,158 Z"/>
+      </svg>
+      <!-- City markers will be positioned via JS -->
+    </div>
+  </div>
+
+  <!-- Right Stats -->
+  <div class="stats-right" id="statsRight"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-icon">🗳️</div>
+    <h2 id="modalCity">Mumbai</h2>
+    <p class="modal-sub">Cast your vote for this city</p>
+    <div class="detect-info">
+      <div class="detect-dot"></div>
+      <span id="detectText">Detecting your location...</span>
+    </div>
+    <button class="btn-confirm" id="btnConfirm">Confirm Vote</button>
+    <button class="btn-cancel" id="btnCancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="check">✓</span>
+  <span id="toastText">Vote recorded!</span>
+</div>
+
+<!-- Confetti -->
+<canvas id="confetti"></canvas>
+
+<footer class="footer">
+  Interactive India Voting Map · Real-time city preference tracking
+</footer>
+
+<script>
+// ─── City Data ───
+const CITIES = [
+  { id:'srinagar', name:'Srinagar', state:'Jammu & Kashmir', x:53, y:15, side:'left' },
+  { id:'delhi', name:'Delhi', state:'Delhi', x:47, y:30, side:'left' },
+  { id:'jaipur', name:'Jaipur', state:'Rajasthan', x:35, y:35, side:'left' },
+  { id:'lucknow', name:'Lucknow', state:'Uttar Pradesh', x:58, y:32, side:'left' },
+  { id:'ahmedabad', name:'Ahmedabad', state:'Gujarat', x:24, y:42, side:'left' },
+  { id:'kolkata', name:'Kolkata', state:'West Bengal', x:74, y:38, side:'right' },
+  { id:'mumbai', name:'Mumbai', state:'Maharashtra', x:28, y:52, side:'right' },
+  { id:'hyderabad', name:'Hyderabad', state:'Telangana', x:53, y:54, side:'right' },
+  { id:'pune', name:'Pune', state:'Maharashtra', x:33, y:55, side:'right' },
+  { id:'bangalore', name:'Bengaluru', state:'Karnataka', x:44, y:66, side:'right' },
+  { id:'chennai', name:'Chennai', state:'Tamil Nadu', x:60, y:64, side:'right' },
+];
+
+// Indian states list for random user-state simulation
+const STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa',
+  'Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala',
+  'Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland',
+  'Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura',
+  'Uttar Pradesh','Uttarakhand','West Bengal','Delhi','Jammu & Kashmir'
+];
+
+// ─── Vote Storage ───
+function loadVotes(){
+  try{ return JSON.parse(localStorage.getItem('indiaVotes'))||{} }catch(e){ return {} }
+}
+function saveVotes(v){ localStorage.setItem('indiaVotes',JSON.stringify(v)) }
+
+let votes = loadVotes();
+CITIES.forEach(c=>{ if(!votes[c.id]) votes[c.id]={same:0,outside:0} });
+saveVotes(votes);
+
+// ─── Detect user state (simulated) ───
+let userState = STATES[Math.floor(Math.random()*STATES.length)];
+// Try real geolocation (won't work in all envs, so we simulate as backup)
+function detectLocation(){
+  return new Promise(resolve=>{
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        pos=>{
+          // In a real app, reverse-geocode to get state
+          // Here we simulate based on rough lat/lng buckets
+          const lat=pos.coords.latitude, lng=pos.coords.longitude;
+          if(lat>28&&lng<77) userState='Rajasthan';
+          else if(lat>28) userState='Delhi';
+          else if(lat<15&&lng<76) userState='Kerala';
+          else if(lat<15) userState='Tamil Nadu';
+          else if(lng>85) userState='West Bengal';
+          else if(lat>20&&lat<25&&lng>72&&lng<76) userState='Gujarat';
+          else if(lat>17&&lat<20&&lng>72&&lng<75) userState='Maharashtra';
+          resolve(userState);
+        },
+        ()=>resolve(userState),
+        {timeout:3000}
+      );
+    } else resolve(userState);
+  });
+}
+detectLocation();
+
+// ─── Build UI ───
+const mapContainer = document.getElementById('mapContainer');
+const statsLeft = document.getElementById('statsLeft');
+const statsRight = document.getElementById('statsRight');
+
+function createDonutSVG(same, outside){
+  const total = same+outside;
+  const r=15, c=2*Math.PI*r;
+  let samePct = total>0 ? same/total : 0;
+  let outPct = total>0 ? outside/total : 0;
+  const sameLen = samePct*c;
+  const outLen = outPct*c;
+  const sameOff = 0;
+  const outOff = -sameLen;
+  return `<svg class="mini-donut" viewBox="0 0 40 40">
+    <circle class="bg-ring" cx="20" cy="20" r="${r}"/>
+    <circle class="same-ring" cx="20" cy="20" r="${r}"
+      stroke-dasharray="${sameLen} ${c-sameLen}"
+      stroke-dashoffset="0" transform="rotate(-90 20 20)"/>
+    <circle class="outside-ring" cx="20" cy="20" r="${r}"
+      stroke-dasharray="${outLen} ${c-outLen}"
+      stroke-dashoffset="${outOff}" transform="rotate(-90 20 20)"/>
+  </svg>`;
+}
+
+function renderStats(){
+  const leftCities = CITIES.filter(c=>c.side==='left');
+  const rightCities = CITIES.filter(c=>c.side==='right');
+
+  function buildCard(city){
+    const v = votes[city.id];
+    const total = v.same+v.outside;
+    const samePct = total>0?Math.round(v.same/total*100):0;
+    const outPct = total>0?Math.round(v.outside/total*100):0;
+    return `<div class="stat-card" data-city="${city.id}">
+      <div class="city-name">${city.name}</div>
+      <div class="vote-total">${total}</div>
+      <div class="vote-label">total votes</div>
+      <div class="stat-row">
+        <div class="donut-wrapper">${createDonutSVG(v.same,v.outside)}</div>
+        <div class="breakdown">
+          <div class="breakdown-item"><span class="bar-dot same"></span><span class="bar-label">Same State</span><span class="bar-value">${samePct}%</span></div>
+          <div class="breakdown-item"><span class="bar-dot outside"></span><span class="bar-label">Outside</span><span class="bar-value">${outPct}%</span></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  statsLeft.innerHTML = leftCities.map(buildCard).join('');
+  statsRight.innerHTML = rightCities.map(buildCard).join('');
+
+  // Total
+  let total=0;
+  Object.values(votes).forEach(v=>total+=v.same+v.outside);
+  document.getElementById('totalVotes').textContent=total;
+}
+
+function renderMarkers(){
+  document.querySelectorAll('.city-marker').forEach(m=>m.remove());
+  CITIES.forEach(city=>{
+    const marker = document.createElement('div');
+    marker.className='city-marker';
+    marker.style.left=city.x+'%';
+    marker.style.top=city.y+'%';
+    marker.innerHTML=`<div class="dot"></div><div class="ring"></div><div class="city-label">${city.name}</div>`;
+    marker.addEventListener('click',()=>openModal(city));
+    mapContainer.appendChild(marker);
+  });
+}
+
+// ─── Modal ───
+const overlay = document.getElementById('modalOverlay');
+const modalCity = document.getElementById('modalCity');
+const detectText = document.getElementById('detectText');
+const btnConfirm = document.getElementById('btnConfirm');
+const btnCancel = document.getElementById('btnCancel');
+let selectedCity = null;
+
+function openModal(city){
+  selectedCity = city;
+  modalCity.textContent = city.name;
+  const isSame = userState===city.state;
+  detectText.textContent = `Your location: ${userState} → ${isSame?'Same State ✓':'Outside State'}`;
+  overlay.classList.add('active');
+}
+function closeModal(){ overlay.classList.remove('active'); selectedCity=null; }
+
+btnCancel.addEventListener('click',closeModal);
+overlay.addEventListener('click',e=>{ if(e.target===overlay) closeModal() });
+
+btnConfirm.addEventListener('click',()=>{
+  if(!selectedCity) return;
+  const isSame = userState===selectedCity.state;
+  if(isSame) votes[selectedCity.id].same++;
+  else votes[selectedCity.id].outside++;
+  saveVotes(votes);
+  closeModal();
+  renderStats();
+
+  // Animate the stat card
+  const card = document.querySelector(`.stat-card[data-city="${selectedCity.id}"]`);
+  if(card){ card.classList.remove('vote-bump'); void card.offsetWidth; card.classList.add('vote-bump'); }
+
+  // Toast
+  showToast(`Vote for ${selectedCity.name} recorded! (${isSame?'Same State':'Outside State'})`);
+
+  // Confetti
+  fireConfetti();
+});
+
+// ─── Toast ───
+function showToast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ─── Confetti ───
+function fireConfetti(){
+  const canvas=document.getElementById('confetti');
+  const ctx=canvas.getContext('2d');
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  const particles=[];
+  const colors=['#f0c040','#2dd4a8','#4e9fff','#ff6b6b','#ffd970','#a78bfa'];
+  for(let i=0;i<60;i++){
+    particles.push({
+      x:canvas.width/2+Math.random()*200-100,
+      y:canvas.height/2,
+      vx:(Math.random()-0.5)*12,
+      vy:Math.random()*-14-4,
+      size:Math.random()*6+3,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      rotation:Math.random()*360,
+      rotSpeed:(Math.random()-0.5)*10,
+      life:1
+    });
+  }
+  function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive=false;
+    particles.forEach(p=>{
+      if(p.life<=0) return;
+      alive=true;
+      p.x+=p.vx;p.y+=p.vy;p.vy+=0.4;
+      p.rotation+=p.rotSpeed;p.life-=0.015;
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rotation*Math.PI/180);
+      ctx.globalAlpha=p.life;ctx.fillStyle=p.color;
+      ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+      ctx.restore();
+    });
+    if(alive) requestAnimationFrame(animate);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  animate();
+}
+
+// ─── Init ───
+renderMarkers();
+renderStats();
+</script>
+</body>
+</html>
