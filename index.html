@@ -63,13 +63,8 @@ body::before{
   left:50%;top:48%;transform:translate(-50%,-50%);
   width:55%;height:auto;
 }
-.sm{fill:#0e1325;stroke:rgba(255,255,255,0.03);stroke-width:0.3;transition:fill 0.3s}
-.sm:hover{fill:#111730}
-.sa{fill:#151e3a;stroke:rgba(212,168,72,0.08);stroke-width:0.4;transition:fill 0.3s}
-.sa:hover{fill:#1a2545;stroke:rgba(212,168,72,0.2)}
-
-/* Tricolor outer border */
-.tri-border{fill:none;stroke:url(#tricolor);stroke-width:2.5;stroke-linejoin:round}
+.sm,.sa{fill:#0e1325;stroke:rgba(255,255,255,0.03);stroke-width:0.3;transition:fill 0.3s}
+.sm:hover,.sa:hover{fill:#111730}
 
 /* ─── City Markers (SVG circles) ─── */
 .city-dot{cursor:pointer;transition:r 0.2s}
@@ -306,30 +301,53 @@ const mapArea = document.getElementById('mapArea');
 const svg = document.getElementById('indiaSvg');
 const ns = 'http://www.w3.org/2000/svg';
 
-// ─── Tricolor outer border ───
+// ─── Single Tricolor border on India outline ───
 function addTricolor(){
   const paths = svg.querySelectorAll('.state-path');
   const skip = new Set(['an','ld','dd','dn','py','ch']);
   const defs = svg.querySelector('defs');
-  const mask = document.createElementNS(ns,'mask');
-  mask.id='tmask';
-  const r = document.createElementNS(ns,'rect');
-  r.setAttribute('width','612');r.setAttribute('height','696');r.setAttribute('fill','white');
-  mask.appendChild(r);
-  paths.forEach(p=>{
+
+  // Strategy: use an off-screen canvas to create a single India silhouette,
+  // then trace it. But easier SVG approach:
+  // 1. Create a clipPath of all mainland states (the India silhouette)
+  // 2. Draw a large tricolor-stroked rectangle OUTSIDE this clip
+  //    → Actually, we need the INVERSE clip
+  //
+  // Better approach using SVG mask:
+  // - Draw all states with thick tricolor stroke (no fill)
+  // - Mask out the INTERIOR of India (so internal strokes are hidden)
+  // - Only the exterior portion of strokes (outer boundary) remains
+
+  // Create mask: white everywhere, black inside India = shows only outside India
+  const mask = document.createElementNS(ns, 'mask');
+  mask.id = 'outerMask';
+  const bg = document.createElementNS(ns, 'rect');
+  bg.setAttribute('x','0');bg.setAttribute('y','0');
+  bg.setAttribute('width','612');bg.setAttribute('height','696');
+  bg.setAttribute('fill','white');
+  mask.appendChild(bg);
+  // Fill India shape in black (hide interior)
+  paths.forEach(p => {
     if(skip.has(p.id)) return;
-    const c=p.cloneNode(false);c.removeAttribute('class');c.removeAttribute('id');
-    c.setAttribute('fill','black');c.removeAttribute('stroke');mask.appendChild(c);
+    const c = p.cloneNode(false);
+    c.removeAttribute('class');c.removeAttribute('id');c.removeAttribute('stroke');
+    c.setAttribute('fill','black');
+    mask.appendChild(c);
   });
   defs.appendChild(mask);
-  const g=document.createElementNS(ns,'g');
-  g.setAttribute('mask','url(#tmask)');g.style.pointerEvents='none';
-  paths.forEach(p=>{
+
+  // Draw stroked paths masked to show only outer edge
+  const g = document.createElementNS(ns,'g');
+  g.setAttribute('mask','url(#outerMask)');
+  g.style.pointerEvents = 'none';
+  paths.forEach(p => {
     if(skip.has(p.id)) return;
-    const c=document.createElementNS(ns,'path');
-    c.setAttribute('d',p.getAttribute('d'));
-    c.setAttribute('fill','none');c.setAttribute('stroke','url(#tricolor)');
-    c.setAttribute('stroke-width','4.5');c.setAttribute('stroke-linejoin','round');
+    const c = document.createElementNS(ns,'path');
+    c.setAttribute('d', p.getAttribute('d'));
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke', 'url(#tricolor)');
+    c.setAttribute('stroke-width', '6');
+    c.setAttribute('stroke-linejoin', 'round');
     g.appendChild(c);
   });
   svg.appendChild(g);
