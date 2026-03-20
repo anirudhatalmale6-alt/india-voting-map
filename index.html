@@ -257,15 +257,17 @@ body::before{
 <script>
 // Cities with SVG coordinates (viewBox 0 0 612 696) and stat box positions (% of map-area)
 // boxPos: where the small stat rectangle sits [left%, top%] relative to map-area
+// side: 'left' or 'right' — which side the stat box goes
+// Spread cities between left and right to avoid overlap
 const CITIES = [
-  { id:'kashmir', name:'Kashmir', state:'Jammu and Kashmir', sx:195, sy:82, color:'#74b9ff', boxPos:[78,3] },
-  { id:'ludhiana', name:'Ludhiana', state:'Punjab', sx:213, sy:162, color:'#00cec9', boxPos:[5,18] },
-  { id:'delhi', name:'Delhi', state:'Delhi', sx:232, sy:196, color:'#ff7675', boxPos:[78,22] },
-  { id:'noida', name:'Noida', state:'Uttar Pradesh', sx:248, sy:206, color:'#55efc4', boxPos:[80,35] },
-  { id:'jaipur', name:'Jaipur', state:'Rajasthan', sx:188, sy:235, color:'#fdcb6e', boxPos:[3,38] },
-  { id:'nagpur', name:'Nagpur', state:'Maharashtra', sx:235, sy:338, color:'#e17055', boxPos:[78,52] },
-  { id:'hyderabad', name:'Hyderabad', state:'Telangana', sx:230, sy:410, color:'#e84393', boxPos:[3,62] },
-  { id:'bangalore', name:'Bengaluru', state:'Karnataka', sx:210, sy:475, color:'#6c5ce7', boxPos:[78,72] },
+  { id:'kashmir', name:'Kashmir', state:'Jammu and Kashmir', sx:195, sy:82, color:'#74b9ff', side:'right' },
+  { id:'ludhiana', name:'Ludhiana', state:'Punjab', sx:213, sy:162, color:'#00cec9', side:'left' },
+  { id:'delhi', name:'Delhi', state:'Delhi', sx:232, sy:196, color:'#ff7675', side:'left' },
+  { id:'noida', name:'Noida', state:'Uttar Pradesh', sx:248, sy:206, color:'#55efc4', side:'right' },
+  { id:'jaipur', name:'Jaipur', state:'Rajasthan', sx:188, sy:235, color:'#fdcb6e', side:'left' },
+  { id:'nagpur', name:'Nagpur', state:'Maharashtra', sx:235, sy:338, color:'#e17055', side:'right' },
+  { id:'hyderabad', name:'Hyderabad', state:'Telangana', sx:230, sy:410, color:'#e84393', side:'left' },
+  { id:'bangalore', name:'Bengaluru', state:'Karnataka', sx:210, sy:475, color:'#6c5ce7', side:'right' },
 ];
 
 const STATES = [
@@ -386,18 +388,46 @@ function addMarkers(){
   svg.appendChild(g);
 }
 
-// ─── Stat Boxes (HTML, positioned absolutely) + Connector Lines (SVG) ───
-function renderStats(){
-  // Remove old boxes
-  document.querySelectorAll('.stat-box').forEach(e=>e.remove());
-  // Remove old connector lines
-  const oldG=svg.querySelector('#connectors');
-  if(oldG) oldG.remove();
-  const connG=document.createElementNS(ns,'g');connG.id='connectors';
+// ─── SVG coordinate helpers ───
+const svgWidthPct = 55;
+const svgLeftPctC = (100 - svgWidthPct)/2;
+const svgHeightPct = svgWidthPct * 696/612;
+const svgTopPctC = 48 - svgHeightPct/2;
 
-  const svgEl=svg;
-  const svgRect=svgEl.getBoundingClientRect();
-  const areaRect=mapArea.getBoundingClientRect();
+function cityToAreaPct(sx, sy){
+  return {
+    x: svgLeftPctC + (sx/612)*svgWidthPct,
+    y: svgTopPctC + (sy/696)*svgHeightPct
+  };
+}
+
+// ─── Stat Boxes + Connector Lines ───
+function renderStats(){
+  document.querySelectorAll('.stat-box').forEach(e=>e.remove());
+
+  // Calculate box Y positions with minimum spacing to prevent overlap
+  const minGap = 5.5; // minimum % gap between boxes on same side
+  const leftCities = CITIES.filter(c=>c.side==='left').sort((a,b)=>a.sy-b.sy);
+  const rightCities = CITIES.filter(c=>c.side==='right').sort((a,b)=>a.sy-b.sy);
+
+  function resolveOverlaps(cities){
+    const positions = {};
+    let lastY = -999;
+    cities.forEach(c=>{
+      const cityPct = cityToAreaPct(c.sx, c.sy);
+      let boxY = cityPct.y - 1.5;
+      if(boxY - lastY < minGap) boxY = lastY + minGap;
+      positions[c.id] = boxY;
+      lastY = boxY;
+    });
+    return positions;
+  }
+
+  const leftPos = resolveOverlaps(leftCities);
+  const rightPos = resolveOverlaps(rightCities);
+
+  // Store resolved positions for connector drawing
+  window._boxPositions = {};
 
   CITIES.forEach((c,i)=>{
     const v=votes[c.id];
@@ -405,11 +435,15 @@ function renderStats(){
     const sp=total>0?Math.round(v.same/total*100):0;
     const op=total>0?Math.round(v.outside/total*100):0;
 
-    // Stat box
+    const boxLeft = c.side==='left' ? 1 : 79;
+    const boxTop = c.side==='left' ? leftPos[c.id] : rightPos[c.id];
+    window._boxPositions[c.id] = { x: boxLeft, y: boxTop };
+
     const box=document.createElement('div');
     box.className='stat-box';box.dataset.city=c.id;
     box.style.borderColor=c.color;
-    box.style.left=c.boxPos[0]+'%';box.style.top=c.boxPos[1]+'%';
+    box.style.left=boxLeft+'%';
+    box.style.top=boxTop+'%';
     box.style.animationDelay=(i*0.06)+'s';
     box.innerHTML=`
       <span class="sb-name" style="color:${c.color}">${c.name}</span>
@@ -422,66 +456,45 @@ function renderStats(){
       </span>`;
     box.addEventListener('click',()=>openModal(c));
     mapArea.appendChild(box);
-
-    // Connector line (SVG coords)
-    // Convert box % position to SVG viewBox coords
-    // Box center in % of mapArea → pixel → SVG coords
-    const boxCenterXpct = c.boxPos[0] + 8; // rough center offset
-    const boxCenterYpct = c.boxPos[1] + 2;
-    // SVG is 62% width centered → SVG left = 19%, SVG right = 81%
-    // SVG viewBox maps to that 62% region
-    // Convert city SVG coords to mapArea %
-    const svgLeftPct = 19;
-    const svgWidthPct = 62;
-    const svgTopPct = (50 - (svgWidthPct * 696/612)/2); // centered vertically
-    const svgHeightPct = svgWidthPct * 696/612;
-    const cityXpct = svgLeftPct + (c.sx/612)*svgWidthPct;
-    const cityYpct = svgTopPct + (c.sy/696)*svgHeightPct;
-
-    // Draw line in a separate SVG overlay
-    // We'll use CSS for the line instead - create an SVG overlay
-    const line=document.createElementNS(ns,'line');
-    // Convert percentages back to SVG viewBox for the connector
-    // Actually easier: use an absolutely positioned SVG overlay
-    // For now, store coords and draw with CSS after
   });
 
-  // Total
   let t=0;Object.values(votes).forEach(v=>t+=v.same+v.outside);
   document.getElementById('totalVotes').textContent=t;
 }
 
-// Connector lines as a separate absolutely positioned SVG
+// Straight connector lines (horizontal from city, short vertical jog if needed)
 function drawConnectors(){
   let oldSvg=document.getElementById('connSvg');
   if(oldSvg) oldSvg.remove();
-  
+
   const connSvg=document.createElementNS(ns,'svg');
   connSvg.id='connSvg';
   connSvg.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:12';
   connSvg.setAttribute('viewBox','0 0 100 100');
   connSvg.setAttribute('preserveAspectRatio','none');
 
-  const svgWidthPct = 55;
-  const svgLeftPct = (100 - svgWidthPct)/2;
-  const svgHeightPct = svgWidthPct * 696/612;
-  const svgTopPct = 48 - svgHeightPct/2;
-
   CITIES.forEach(c=>{
-    const cityXpct = svgLeftPct + (c.sx/612)*svgWidthPct;
-    const cityYpct = svgTopPct + (c.sy/696)*svgHeightPct;
-    // Box position: approximate center of box
-    const bx = c.boxPos[0] + (c.boxPos[0] < 50 ? 12 : 0);
-    const by = c.boxPos[1] + 2.5;
+    const cityPct = cityToAreaPct(c.sx, c.sy);
+    const bp = window._boxPositions && window._boxPositions[c.id];
+    if(!bp) return;
 
-    const line=document.createElementNS(ns,'line');
-    line.setAttribute('x1', cityXpct);
-    line.setAttribute('y1', cityYpct);
-    line.setAttribute('x2', bx);
-    line.setAttribute('y2', by);
-    line.setAttribute('stroke', c.color);
-    line.setAttribute('class','conn-line');
-    connSvg.appendChild(line);
+    const boxEdgeX = c.side==='left' ? 20 : 79;
+    const boxCenterY = bp.y + 1.5; // center of box
+
+    // If box Y matches city Y, draw straight horizontal line
+    // Otherwise draw an L-shaped line: horizontal from city, then vertical to box
+    const polyline = document.createElementNS(ns,'polyline');
+    if(Math.abs(cityPct.y - boxCenterY) < 1){
+      // Straight horizontal
+      polyline.setAttribute('points', `${cityPct.x},${cityPct.y} ${boxEdgeX},${cityPct.y}`);
+    } else {
+      // L-shape: horizontal from city to box X edge, then vertical to box Y
+      polyline.setAttribute('points', `${cityPct.x},${cityPct.y} ${boxEdgeX},${cityPct.y} ${boxEdgeX},${boxCenterY}`);
+    }
+    polyline.setAttribute('fill','none');
+    polyline.setAttribute('stroke', c.color);
+    polyline.setAttribute('class','conn-line');
+    connSvg.appendChild(polyline);
   });
   mapArea.appendChild(connSvg);
 }
