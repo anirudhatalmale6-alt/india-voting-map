@@ -66,6 +66,13 @@ body::before{
 .sm,.sa{fill:#0e1325;stroke:rgba(255,255,255,0.03);stroke-width:0.3;transition:fill 0.3s}
 .sm:hover,.sa:hover{fill:#111730}
 
+/* City district boundaries */
+.city-district{
+  fill:rgba(255,255,255,0.06);stroke-width:1.2;stroke-linejoin:round;
+  transition:fill 0.3s,stroke 0.3s;cursor:pointer;
+}
+.city-district:hover{fill:rgba(255,255,255,0.12)}
+
 /* ─── City Markers (SVG circles) ─── */
 .city-dot{cursor:pointer;transition:r 0.2s}
 .city-dot:hover{r:7}
@@ -186,12 +193,12 @@ body::before{
 <div class="map-area" id="mapArea">
   <svg class="india" id="indiaSvg" viewBox="0 0 612 696" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="tricolor" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="tricolor" gradientUnits="userSpaceOnUse" x1="0" y1="60" x2="0" y2="580">
         <stop offset="0%" stop-color="#FF9933"/>
         <stop offset="33%" stop-color="#FF9933"/>
-        <stop offset="33%" stop-color="#FFFFFF"/>
+        <stop offset="33.5%" stop-color="#FFFFFF"/>
         <stop offset="66%" stop-color="#FFFFFF"/>
-        <stop offset="66%" stop-color="#138808"/>
+        <stop offset="66.5%" stop-color="#138808"/>
         <stop offset="100%" stop-color="#138808"/>
       </linearGradient>
       <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -548,7 +555,38 @@ function fireConfetti(){
   })();
 }
 
+// ─── City district boundaries ───
+const DISTRICT_PATHS = {
+  'hyderabad': "M217.82,451.62L216.22,452.79L215.04,451.34L215.29,450.14L217.59,450.08L217.82,451.62Z",
+  'bangalore': "M203.25,554.83L202.45,557.5L201.33,559.27L198.46,559.36L198.75,558.42L197.25,556.9L194.66,555.74L193.06,554.32L192.81,552.34L194.85,549.79L195.94,546.64L197.28,546.46L201.05,547.34L202.2,550.99L201.88,553.06L203.25,554.83Z",
+  'jaipur': "M166.61,211.97L168.69,212.95L169.71,212.16L170.1,216.82L169.04,217.17L169.97,220.38L168.5,224.15L167.44,225.89L168.69,227.02L170.54,227.02L170.86,229.76L170.0,230.92L169.55,233.31L170.45,235.05L169.27,235.8L168.02,238.22L168.82,240.11L168.21,242.19L167.13,241.81L165.18,242.69L161.12,242.22L158.92,243.92L156.01,243.86L153.61,242.76L151.76,242.95L150.96,241.28L148.34,242.28L147.61,243.51L145.41,241.43L145.47,239.14L143.36,238.48L142.31,234.95L143.59,233.72L144.32,232.46L147.48,232.78L148.31,231.8L148.66,229.38L151.03,229.13L150.71,227.93L150.96,226.42L152.3,224.85L154.03,224.75L155.12,223.56L156.65,224.34L159.59,222.08L160.77,222.64L163.29,220.91L164.03,218.36L163.77,217.07L166.42,213.67L166.61,211.97Z",
+  'ludhiana': "M151.63,139.8L156.52,140.37L159.72,139.36L160.77,139.77L164.03,139.43L167.86,139.71L170.8,139.3L171.41,139.87L171.69,142.45L170.89,143.55L171.34,147.01L168.18,147.55L166.81,149.69L165.21,148.46L163.68,149.56L162.49,147.07L160.55,147.51L158.41,149.02L156.2,149.5L153.84,148.68L152.66,149.18L151.92,148.21L152.4,144.11L151.63,139.8Z",
+  'nagpur': "M238.93,356.22L237.62,357.36L237.62,358.8L239.69,362.27L239.18,364.69L238.0,365.44L240.17,366.96L241.36,369.41L238.74,373.75L238.51,375.14L236.79,376.37L235.06,376.56L234.36,378.1L232.28,378.16L230.66,375.96L228.74,374.6L226.47,373.91L224.08,371.05L222.1,369.82L221.97,368.5L220.4,367.84L219.32,366.11L216.09,363.18L213.69,362.9L212.03,361.04L214.4,359.59L216.12,359.37L215.83,357.23L217.46,356.51L219.0,357.45L225.58,357.14L225.93,355.09L227.14,354.46L229.28,354.74L232.35,353.77L232.57,352.16L235.86,353.17L238.03,353.17L238.32,354.96L238.93,356.22Z",
+  'kashmir': "M137.55,66.91L137.87,66.75L141.0,68.14L142.69,66.34L144.35,67.29L146.33,67.16L147.26,69.02L145.69,68.29L142.34,70.5L137.71,67.82L137.55,66.91Z",
+  'delhi': "M190.67,190.73L192.13,192.11L192.52,193.66L193.03,194.38L192.1,195.36L193.16,196.43L191.21,197.28L189.55,199.07L188.4,197.15L187.92,196.68L186.03,195.95L183.48,196.83L182.68,195.73L183.57,193.88L184.92,193.06L185.3,192.37L184.69,190.07L185.24,189.75L188.43,188.68L190.41,188.81L190.54,189.31L190.25,190.23L190.67,190.73Z",
+  'noida': "M197.72,193.4L200.18,195.58L199.13,198.57L201.3,201.05L200.28,201.93L201.21,205.4L197.76,206.34L195.84,206.4L196.35,203.63L196.45,199.86L193.16,196.43L192.1,195.36L193.03,194.38L197.72,193.4Z"
+};
+
+function addDistricts(){
+  const g = document.createElementNS(ns,'g');
+  g.id = 'districts';
+  CITIES.forEach(c => {
+    const d = DISTRICT_PATHS[c.id];
+    if(!d) return;
+    const path = document.createElementNS(ns,'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class','city-district');
+    path.setAttribute('stroke', c.color);
+    path.setAttribute('data-city', c.id);
+    path.style.filter = 'url(#glow)';
+    path.addEventListener('click', () => openModal(c));
+    g.appendChild(path);
+  });
+  svg.appendChild(g);
+}
+
 addTricolor();
+addDistricts();
 addMarkers();
 renderStats();
 drawConnectors();
